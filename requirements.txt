@@ -10,5 +10,12 @@ requests==2.27.1
 aiogram==2.19
 websockets==10.2
 grapheme==0.6.0
+Pillow
+requests
+emoji
+moviepy
+python-ffmpeg
+ffmpeg
+bs4
 
 # Python 3.8+
