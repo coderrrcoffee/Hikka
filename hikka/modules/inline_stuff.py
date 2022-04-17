@@ -1,16 +1,6 @@
-# █ █ ▀ █▄▀ ▄▀█ █▀█ ▀    ▄▀█ ▀█▀ ▄▀█ █▀▄▀█ ▄▀█
-# █▀█ █ █ █ █▀█ █▀▄ █ ▄  █▀█  █  █▀█ █ ▀ █ █▀█
-#
 #              © Copyright 2022
 #
-#          https://t.me/hikariatama
-#
-# 🔒 Licensed under the CC BY-NC-ND 4.0
-# 🌐 https://creativecommons.org/licenses/by-nc-nd/4.0
-
-# scope: inline
-# scope: hikka_only
-# meta developer: @hikariatama
+#          https://t.me/codercoffee
 
 from .. import loader, utils
 from telethon.tl.types import Message

@@ -1,14 +1,8 @@
 """Inline buttons, galleries and other Telegram-Bot-API stuff"""
 
-# █ █ ▀ █▄▀ ▄▀█ █▀█ ▀    ▄▀█ ▀█▀ ▄▀█ █▀▄▀█ ▄▀█
-# █▀█ █ █ █ █▀█ █▀▄ █ ▄  █▀█  █  █▀█ █ ▀ █ █▀█
-#
 #              © Copyright 2022
 #
-#          https://t.me/hikariatama
-#
-# 🔒 Licensed under the GNU GPLv3
-# 🌐 https://www.gnu.org/licenses/agpl-3.0.html
+#          https://t.me/codercoffee
 
 from aiogram import Bot, Dispatcher
 from aiogram.utils.exceptions import Unauthorized, TerminatedByOtherGetUpdates

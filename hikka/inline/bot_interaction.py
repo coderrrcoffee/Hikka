@@ -1,3 +1,7 @@
+#              © Copyright 2022
+#
+#          https://t.me/codercoffee
+
 from .types import InlineUnit
 
 from aiogram.types import Message as AiogramMessage

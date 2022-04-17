@@ -1,32 +1,8 @@
 """Main script, where all the fun starts"""
 
-#    Friendly Telegram (telegram userbot)
-#    Copyright (C) 2018-2021 The Authors
-
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
-
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
-
-# █ █ ▀ █▄▀ ▄▀█ █▀█ ▀    ▄▀█ ▀█▀ ▄▀█ █▀▄▀█ ▄▀█
-# █▀█ █ █ █ █▀█ █▀▄ █ ▄  █▀█  █  █▀█ █ ▀ █ █▀█
-#
 #              © Copyright 2022
 #
-#          https://t.me/hikariatama
-#
-# 🔒 Licensed under the GNU GPLv3
-# 🌐 https://www.gnu.org/licenses/agpl-3.0.html
-
+#          https://t.me/codercoffee
 
 import argparse
 import asyncio
@@ -52,7 +28,7 @@ from telethon.sessions import SQLiteSession
 
 from . import utils, loader, database
 from .dispatcher import CommandDispatcher
-from .translations.core import Translator
+from .translations import Translator
 
 from math import ceil
 from .version import __version__
@@ -495,10 +471,10 @@ class Hikka:
                      • Version: {'.'.join(list(map(str, list(__version__))))}
                      • {upd}
                      • Platform: {_platform}
-                     - Started for {(await client.get_me()).id} -"""
+                     """
 
-            print(logo1)
             if not omit_log:
+                print(logo1)
                 logging.info(
                     "🌘 Hikka started\n"
                     f"GitHub commit SHA: {build[:7]} ({upd})\n"
@@ -506,18 +482,20 @@ class Hikka:
                     f"Platform: {_platform}"
                 )
                 omit_log = True
+
+            print(f"- Started for {(await client.get_me()).id} -")
         except Exception:
             logging.exception("Badge error")
 
     async def _handle_setup(self, client, db) -> None:
         await db.init()
         modules = loader.Modules()
-        babelfish = Translator([], [], self.arguments.data_root)
-        await babelfish.init(client)
+        translator = Translator(client, db)
+        await translator.init()
 
         modules.register_all(db)
 
-        modules.send_config(db, babelfish)
+        modules.send_config(db, translator)
         await modules.send_ready(client, db, self.clients)
 
         for handler in logging.getLogger().handlers:
@@ -579,13 +557,12 @@ class Hikka:
 
         to_load = ["loader.py"] if self.arguments.docker_deps_internal else None
 
-        babelfish = Translator(
-            db.get(__name__, "langpacks", []),
-            db.get(__name__, "language", ["en"]),
-            self.arguments.data_root,
+        translator = Translator(
+            client,
+            db
         )
 
-        await babelfish.init(client)
+        await translator.init()
         modules = loader.Modules()
         client.loader = modules
 
@@ -604,7 +581,7 @@ class Hikka:
             await self._add_dispatcher(client, modules, db)
 
         modules.register_all(db, to_load)
-        modules.send_config(db, babelfish)
+        modules.send_config(db, translator)
         await modules.send_ready(client, db, self.clients)
 
         if first:

@@ -1,14 +1,6 @@
-# █ █ ▀ █▄▀ ▄▀█ █▀█ ▀    ▄▀█ ▀█▀ ▄▀█ █▀▄▀█ ▄▀█
-# █▀█ █ █ █ █▀█ █▀▄ █ ▄  █▀█  █  █▀█ █ ▀ █ █▀█
-#
 #              © Copyright 2022
 #
-#          https://t.me/hikariatama
-#
-# 🔒 Licensed under the GNU GPLv3
-# 🌐 https://www.gnu.org/licenses/agpl-3.0.html
-
-# scope: inline
+#          https://t.me/codercoffee
 
 from .. import loader, utils, main
 from telethon.tl.types import Message
@@ -272,14 +264,17 @@ class HikkaSettingsMod(loader.Module):
             and self._db.get(main.__name__, "command_prefix", ".") == "."
         ):
             await call.answer(
-                "Warning! You enabled NoNick with default prefix! You may get muted in Hikka chats. Change prefix or disable NoNick!",
+                "Warning! You enabled NoNick with default prefix! "
+                "You may get muted in Hikka chats. Change prefix or "
+                "disable NoNick!",
                 show_alert=True,
             )
         else:
             await call.answer("Configuration value saved!")
 
         await call.edit(
-            self.strings("inline_settings"), reply_markup=self._get_settings_markup()
+            self.strings("inline_settings"),
+            reply_markup=self._get_settings_markup(),
         )
 
     async def inline__close(self, call: CallbackQuery) -> None:
@@ -294,10 +289,8 @@ class HikkaSettingsMod(loader.Module):
             await call.edit(
                 self.strings("confirm_update"),
                 reply_markup=[
-                    [
-                        {"text": "🪂 Update", "callback": self.inline__update},
-                        {"text": "🚫 Cancel", "callback": self.inline__close},
-                    ]
+                    {"text": "🪂 Update", "callback": self.inline__update},
+                    {"text": "🚫 Cancel", "callback": self.inline__close},
                 ],
             )
             return
@@ -316,10 +309,8 @@ class HikkaSettingsMod(loader.Module):
             await call.edit(
                 self.strings("confirm_restart"),
                 reply_markup=[
-                    [
-                        {"text": "🔄 Restart", "callback": self.inline__restart},
-                        {"text": "🚫 Cancel", "callback": self.inline__close},
-                    ]
+                    {"text": "🔄 Restart", "callback": self.inline__restart},
+                    {"text": "🚫 Cancel", "callback": self.inline__close},
                 ],
             )
             return

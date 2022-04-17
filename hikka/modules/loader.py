@@ -1,32 +1,8 @@
 """Loads and registers modules"""
 
-#    Friendly Telegram (telegram userbot)
-#    Copyright (C) 2018-2021 The Authors
-
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
-
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
-# █ █ ▀ █▄▀ ▄▀█ █▀█ ▀    ▄▀█ ▀█▀ ▄▀█ █▀▄▀█ ▄▀█
-# █▀█ █ █ █ █▀█ █▀▄ █ ▄  █▀█  █  █▀█ █ ▀ █ █▀█
-#
 #              © Copyright 2022
 #
-#          https://t.me/hikariatama
-#
-# 🔒 Licensed under the GNU GPLv3
-# 🌐 https://www.gnu.org/licenses/agpl-3.0.html
-
-# scope: inline
+#          https://t.me/codercoffee
 
 import asyncio
 import importlib
@@ -345,13 +321,15 @@ class LoaderMod(loader.Module):
             return
 
         if not self._db.get(
-            main.__name__, "disable_modules_fs", False
+            main.__name__,
+            "disable_modules_fs",
+            False,
         ) and not self._db.get(main.__name__, "permanent_modules_fs", False):
             if message.file:
                 await message.edit("")
                 message = await message.respond("🌘")
 
-            await self.inline.form(
+            if await self.inline.form(
                 self.strings("module_fs"),
                 message=message,
                 reply_markup=[
@@ -382,8 +360,8 @@ class LoaderMod(loader.Module):
                         }
                     ],
                 ],
-            )
-            return
+            ):
+                return
 
         if path_ is not None:
             await self.load_module(
@@ -567,7 +545,7 @@ class LoaderMod(loader.Module):
 
         try:
             try:
-                self.allmodules.send_config_one(instance, self._db, self.babel)
+                self.allmodules.send_config_one(instance, self._db, self.translator)
                 await self.allmodules.send_ready_one(
                     instance,
                     self._client,

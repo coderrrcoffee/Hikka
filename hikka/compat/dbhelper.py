@@ -1,10 +1,7 @@
-# This file is copied verbatim from https://kutt.it/8EL9Ol
-# The author said "Ye."
+#              © Copyright 2022
+#
+#          https://t.me/codercoffee
 
-# flake8: noqa: Q000
-
-
-# TODO: remove that shit or idk
 from userbot import MONGO, REDIS
 
 

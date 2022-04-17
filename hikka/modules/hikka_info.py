@@ -1,14 +1,6 @@
-# █ █ ▀ █▄▀ ▄▀█ █▀█ ▀    ▄▀█ ▀█▀ ▄▀█ █▀▄▀█ ▄▀█
-# █▀█ █ █ █ █▀█ █▀▄ █ ▄  █▀█  █  █▀█ █ ▀ █ █▀█
-#
 #              © Copyright 2022
 #
-#          https://t.me/hikariatama
-#
-# 🔒 Licensed under the GNU GPLv3
-# 🌐 https://www.gnu.org/licenses/agpl-3.0.html
-
-# scope: inline
+#          https://t.me/codercoffee
 
 from .. import loader, main, utils
 import logging
@@ -54,17 +46,15 @@ class HikkaInfoMod(loader.Module):
             "<b>🌘 Hikka Userbot</b>\n"
             f'<b>🤴 Owner: <a href="tg://user?id={self._me.id}">{utils.escape_html(get_display_name(self._me))}</a></b>\n\n'
             f"<b>🔮 Version: </b><i>{'.'.join(list(map(str, list(main.__version__))))}</i>\n"
-            f"<b>🧱 Build: </b><a href=\"https://github.com/hikariatama/Hikka/commit/{ver}\">{ver[:8] or 'Unknown'}</a>\n"
+            f"<b>🧱 Build: </b><a href=\"https://github.com/teateateate/Hikka/commit/{ver}\">{ver[:8] or 'Unknown'}</a>\n"
             f"<b>📼 Command prefix: </b>«<code>{utils.escape_html((self._db.get(main.__name__, 'command_prefix', False) or '.')[0])}</code>»\n"
             f"<b>{upd}</b>\n"
             f"<b>{utils.get_named_platform()}</b>\n"
         )
 
+    @loader.inline_everyone
     async def info_inline_handler(self, query: InlineQuery) -> dict:
-        """
-        Send userbot info
-        @allow: all
-        """
+        """Send userbot info"""
 
         return {
             "title": "Send userbot info",
@@ -74,6 +64,7 @@ class HikkaInfoMod(loader.Module):
             "reply_markup": self.markup,
         }
 
+    @loader.unrestricted
     async def infocmd(self, message: Message) -> None:
         """Send userbot info"""
         await self.inline.form(
@@ -82,6 +73,7 @@ class HikkaInfoMod(loader.Module):
             reply_markup=self.markup,
         )
 
+    @loader.unrestricted
     async def hikkainfocmd(self, message: Message) -> None:
         """[en/ru - default en] - Send info aka 'What is Hikka?'"""
         args = utils.get_args_raw(message)

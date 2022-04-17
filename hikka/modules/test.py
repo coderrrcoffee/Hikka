@@ -1,14 +1,6 @@
-# █ █ ▀ █▄▀ ▄▀█ █▀█ ▀    ▄▀█ ▀█▀ ▄▀█ █▀▄▀█ ▄▀█
-# █▀█ █ █ █ █▀█ █▀▄ █ ▄  █▀█  █  █▀█ █ ▀ █ █▀█
-#
 #              © Copyright 2022
 #
-#          https://t.me/hikariatama
-#
-# 🔒 Licensed under the GNU GPLv3
-# 🌐 https://www.gnu.org/licenses/agpl-3.0.html
-
-# scope: inline
+#          https://t.me/codercoffee
 
 import time
 
@@ -19,8 +11,6 @@ from .. import loader, utils, main
 
 from typing import Union
 from telethon.tl.types import Message
-
-from telethon.errors.rpcerrorlist import ChatSendInlineForbiddenError
 
 import aiogram
 
@@ -41,7 +31,11 @@ class TestMod(loader.Module):
         "suspended": "🥶 <b>Bot suspended for</b> <code>{}</code> <b>seconds</b>",
         "results_ping": "⏱ <b>Ping:</b> <code>{}</code> <b>ms</b>",
         "confidential": "⚠️ <b>Log level </b><code>{}</code><b> may reveal your confidential info, be careful</b>",
-        "confidential_text": "⚠️ <b>Log level </b><code>{0}</code><b> may reveal your confidential info, be careful</b>\n<b>Type </b><code>.logs {0} force_insecure</code><b> to ignore this warning</b>",
+        "confidential_text": (
+            "⚠️ <b>Log level </b><code>{0}</code><b> may reveal your confidential info, "
+            "be careful</b>\n<b>Type </b><code>.logs {0} force_insecure</code><b> "
+            "to ignore this warning</b>"
+        ),
         "choose_loglevel": "💁‍♂️ <b>Choose log level</b>",
     }
 
@@ -80,8 +74,8 @@ class TestMod(loader.Module):
                 lvl = None
 
         if not isinstance(lvl, int):
-            if self.inline.init_complete:
-                await self.inline.form(
+            try:
+                if not self.inline.init_complete or not await self.inline.form(
                     text=self.strings("choose_loglevel"),
                     reply_markup=[
                         [
@@ -123,8 +117,9 @@ class TestMod(loader.Module):
                         [{"text": "🚫 Cancel", "callback": self.cancel}],
                     ],
                     message=message,
-                )
-            else:
+                ):
+                    raise
+            except Exception:
                 await utils.answer(message, self.strings("set_loglevel"))
 
             return
@@ -137,7 +132,9 @@ class TestMod(loader.Module):
         ).encode("utf-16")
 
         named_lvl = (
-            lvl if lvl not in logging._levelToName else logging._levelToName[lvl]  # skipcq: PYL-W0212
+            lvl
+            if lvl not in logging._levelToName
+            else logging._levelToName[lvl]  # skipcq: PYL-W0212
         )
 
         if (
@@ -148,32 +145,30 @@ class TestMod(loader.Module):
                 or "force_insecure" not in message.raw_text.lower()
             )
         ):
-            if self.inline.init_complete:
-                try:
-                    cfg = {
-                        "text": self.strings("confidential").format(named_lvl),
-                        "reply_markup": [
-                            [
-                                {
-                                    "text": "📤 Send anyway",
-                                    "callback": self.logscmd,
-                                    "args": [True, lvl],
-                                },
-                                {"text": "🚫 Cancel", "callback": self.cancel},
-                            ]
-                        ],
-                    }
-                    if isinstance(message, Message):
-                        await self.inline.form(**cfg, message=message)
-                    else:
-                        await message.edit(**cfg)
-                except ChatSendInlineForbiddenError:
-                    await utils.answer(
-                        message, self.strings("confidential_text").format(named_lvl)
-                    )
-            else:
+            try:
+                if not self.inline.init_complete:
+                    raise
+
+                cfg = {
+                    "text": self.strings("confidential").format(named_lvl),
+                    "reply_markup": [
+                        {
+                            "text": "📤 Send anyway",
+                            "callback": self.logscmd,
+                            "args": [True, lvl],
+                        },
+                        {"text": "🚫 Cancel", "callback": self.cancel},
+                    ],
+                }
+                if isinstance(message, Message):
+                    if not await self.inline.form(**cfg, message=message):
+                        raise
+                else:
+                    await message.edit(**cfg)
+            except Exception:
                 await utils.answer(
-                    message, self.strings("confidential_text").format(named_lvl)
+                    message,
+                    self.strings("confidential_text").format(named_lvl),
                 )
 
             return
@@ -190,12 +185,18 @@ class TestMod(loader.Module):
         logs = BytesIO(logs)
         logs.name = self.strings("logs_filename")
 
-        other = (*main.__version__, utils.formatted_uptime(), utils.get_named_platform())
+        other = (
+            *main.__version__,
+            utils.formatted_uptime(),
+            utils.get_named_platform(),
+        )
 
         if isinstance(message, Message):
             await message.delete()
             await utils.answer(
-                message, logs, caption=self.strings("logs_caption").format(named_lvl, *other)
+                message,
+                logs,
+                caption=self.strings("logs_caption").format(named_lvl, *other),
             )
         else:
             await message.delete()
@@ -220,7 +221,9 @@ class TestMod(loader.Module):
     async def pingcmd(self, message: Message) -> None:
         """Test your userbot ping"""
         start = time.perf_counter_ns()
-        message = await utils.answer(message, "<code>🐻 Bear with us while ping is checking...</code>")
+        message = await utils.answer(
+            message, "<code>🐻 Bear with us while ping is checking...</code>"
+        )
         end = time.perf_counter_ns()
 
         if isinstance(message, (list, tuple, set)):

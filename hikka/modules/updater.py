@@ -1,28 +1,6 @@
-#    Friendly Telegram (telegram userbot)
-#    Copyright (C) 2018-2021 The Authors
-
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
-
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
-# █ █ ▀ █▄▀ ▄▀█ █▀█ ▀    ▄▀█ ▀█▀ ▄▀█ █▀▄▀█ ▄▀█
-# █▀█ █ █ █ █▀█ █▀▄ █ ▄  █▀█  █  █▀█ █ ▀ █ █▀█
-#
 #              © Copyright 2022
 #
-#          https://t.me/hikariatama
-#
-# 🔒 Licensed under the GNU GPLv3
-# 🌐 https://www.gnu.org/licenses/agpl-3.0.html
+#          https://t.me/codercoffee
 
 import atexit
 import functools
@@ -65,34 +43,32 @@ class UpdaterMod(loader.Module):
     def __init__(self):
         self.config = loader.ModuleConfig(
             "GIT_ORIGIN_URL",
-            "https://github.com/hikariatama/Hikka",
-            lambda m: self.strings("origin_cfg_doc", m),
+            "https://github.com/teateateate/Hikka",
+            lambda: self.strings("origin_cfg_doc"),
         )
 
     @loader.owner
     async def restartcmd(self, message: Message) -> None:
         """Restarts the userbot"""
-        if self.inline.init_complete and await self.inline.form(
-            message=message,
-            text=self.strings(
-                "restart_confirm",
-                message,
-            ),
-            reply_markup=[
-                {
-                    "text": self.strings("btn_restart"),
-                    "callback": self.inline_restart,
-                },
-                {"text": self.strings("cancel"), "callback": self.inline_close},
-            ],
-        ):
-            return
+        try:
+            if not self.inline.init_complete or not await self.inline.form(
+                message=message,
+                text=self.strings("restart_confirm"),
+                reply_markup=[
+                    {
+                        "text": self.strings("btn_restart"),
+                        "callback": self.inline_restart,
+                    },
+                    {"text": self.strings("cancel"), "callback": self.inline_close},
+                ],
+            ):
+                raise
+        except Exception:
+            message = await utils.answer(message, self.strings("restarting_caption"))
+            if isinstance(message, (list, set, tuple)):
+                message = message[0]
 
-        message = await utils.answer(message, self.strings("restarting_caption"))
-        if isinstance(message, (list, set, tuple)):
-            message = message[0]
-
-        await self.restart_common(message)
+            await self.restart_common(message)
 
     async def inline_restart(self, call: CallbackQuery) -> None:
         await call.edit(self.strings("restarting_caption"))
@@ -180,23 +156,25 @@ class UpdaterMod(loader.Module):
     @loader.owner
     async def updatecmd(self, message: Message) -> None:
         """Downloads userbot updates"""
-        if "--force" not in (utils.get_args_raw(message) or "") and self.inline.init_complete and await self.inline.form(
-            message=message,
-            text=self.strings(
-                "update_confirm",
-                message,
-            ),
-            reply_markup=[
-                {
-                    "text": self.strings("btn_update"),
-                    "callback": self.inline_update,
-                },
-                {"text": self.strings("cancel"), "callback": self.inline_close},
-            ],
-        ):
-            return
-
-        await self.inline_update(message)
+        try:
+            if (
+                "--force" in (utils.get_args_raw(message) or "")
+                or not self.inline.init_complete
+                or not await self.inline.form(
+                    message=message,
+                    text=self.strings("update_confirm"),
+                    reply_markup=[
+                        {
+                            "text": self.strings("btn_update"),
+                            "callback": self.inline_update,
+                        },
+                        {"text": self.strings("cancel"), "callback": self.inline_close},
+                    ],
+                )
+            ):
+                raise
+        except Exception:
+            await self.inline_update(message)
 
     async def inline_update(
         self,
@@ -242,7 +220,7 @@ class UpdaterMod(loader.Module):
         """Links the source code of this project"""
         await utils.answer(
             message,
-            self.strings("source", message).format(self.config["GIT_ORIGIN_URL"]),
+            self.strings("source").format(self.config["GIT_ORIGIN_URL"]),
         )
 
     async def client_ready(self, client, db):

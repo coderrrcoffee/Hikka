@@ -1,3 +1,7 @@
+#              © Copyright 2022
+#
+#          https://t.me/codercoffee
+
 import logging
 from telethon.tl.types import Message
 
