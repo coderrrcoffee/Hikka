@@ -20,7 +20,7 @@ def _safe_input(*args, **kwargs):
     try:
         return input(*args, **kwargs)
     except (EOFError, OSError):
-        raise    
+        raise
     except KeyboardInterrupt:
         print()
         return None
@@ -146,7 +146,7 @@ def modules_config():
             if mod.name == tag:
                 # Match
                 while not module_config(mod):
-                    time.sleep(.05)
+                    time.sleep(0.05)
         return modules_config()
     return None
 
@@ -163,9 +163,9 @@ def module_config(mod):
     if code == DIALOG.OK:
         code, value = DIALOG.inputbox(tag)
         if code == DIALOG.OK:
-            DB.setdefault(mod.__module__, {}).setdefault("__config__", {})[
-                tag
-            ] = validate_value(value)
+            DB.setdefault(getattr(mod, "name", mod.__class__.__name__), {}).setdefault(
+                "__config__", {}
+            )[tag] = validate_value(value)
             DIALOG.msgbox("Config value set successfully")
         return False
     return True
@@ -180,7 +180,7 @@ def run(database, data_root, phone, init, mods):
     TITLE = TITLE.format(phone)
     DIALOG.set_background_title(TITLE)
     while main_config(init, data_root):
-        time.sleep(.05)
+        time.sleep(0.05)
     return DB
 
 

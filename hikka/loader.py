@@ -16,10 +16,12 @@ import sys
 from . import utils, security
 from .translations import Strings
 from .inline.core import InlineManager
-from ._types import Module, LoadError, ModuleConfig  # noqa: F401
+from ._types import Module, LoadError, ModuleConfig, StopLoop  # noqa: F401
 from importlib.machinery import ModuleSpec
+from types import FunctionType
+from typing import Any, Optional, Union
 
-from typing import Any
+logger = logging.getLogger(__name__)
 
 owner = security.owner
 sudo = security.sudo
@@ -36,6 +38,94 @@ group_member = security.group_member
 pm = security.pm
 unrestricted = security.unrestricted
 inline_everyone = security.inline_everyone
+
+
+class InfiniteLoop:
+    def __init__(
+        self,
+        func: FunctionType,
+        interval: int,
+        autostart: bool,
+        wait_before: bool,
+        stop_clause: Union[str, None],
+    ) -> None:
+        logger.debug(f"Inited new loop {func=}, {interval=}")
+        self.func = func
+        self.interval = interval
+        self._wait_before = wait_before
+        self._stop_clause = stop_clause
+
+        self._task = None
+        self.module_instance = None  # Will be passed later
+        if autostart:
+            self.start()
+
+    def stop(self, *args, **kwargs) -> None:
+        if self._task:
+            logger.debug(f"Stopped loop for {self.func}")
+            self._task.cancel()
+            del self._task
+        else:
+            logger.debug("Loop is not running")
+
+    def start(self, *args, **kwargs) -> None:
+        logger.debug(f"Started loop for {self.func}")
+        self._task = asyncio.ensure_future(self.actual_loop(*args, **kwargs))
+
+    async def actual_loop(self, *args, **kwargs):
+        # Wait for loader to set attribute
+        while not self.module_instance:
+            await asyncio.sleep(0.1)
+
+        if isinstance(self._stop_clause, str) and self._stop_clause:
+            self.module_instance.set(self._stop_clause, True)
+
+        while True:
+            if self._wait_before:
+                await asyncio.sleep(self.interval)
+
+            if (
+                isinstance(self._stop_clause, str)
+                and self._stop_clause
+                and not self.module_instance.get(self._stop_clause, False)
+            ):
+                break
+
+            try:
+                await self.func(self.module_instance, *args, **kwargs)
+            except StopLoop:
+                break
+            except Exception:
+                logger.exception("Error running loop!")
+
+            if not self._wait_before:
+                await asyncio.sleep(self.interval)
+
+    def __del__(self) -> None:
+        self.stop()
+
+
+def loop(
+    interval: int = 5,
+    autostart: bool = False,
+    wait_before: bool = False,
+    stop_clause: Optional[str] = None,
+) -> FunctionType:
+    """
+    Create new infinite loop from class method
+    :param interval: Loop iterations delay
+    :param autostart: Start loop once module is loaded
+    :param wait_before: Insert delay before actual iteration, rather than after
+    :param stop_clase: Database key, based on which the loop will run.
+                       This key will be set to `True` once loop is started,
+                       and will stop after key resets to `False`
+    """
+
+    def wrapped(func):
+        return InfiniteLoop(func, interval, autostart, wait_before, stop_clause)
+
+    return wrapped
+
 
 MODULES_NAME = "modules"
 ru_keys = 'ёйцукенгшщзхъфывапролджэячсмитьбю.Ё"№;%:?ЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭ/ЯЧСМИТЬБЮ,'
@@ -77,10 +167,10 @@ def translatable_docstring(cls):
     cls.config_complete = config_complete
 
     for command, func in get_commands(cls).items():
-        cls.strings["_cmd_doc_" + command] = inspect.getdoc(func)
+        cls.strings[f"_cmd_doc_{command}"] = inspect.getdoc(func)
 
     for inline_handler, func in get_inline_handlers(cls).items():
-        cls.strings["_ihandle_doc_" + inline_handler] = inspect.getdoc(func)
+        cls.strings[f"_ihandle_doc_{inline_handler}"] = inspect.getdoc(func)
 
     cls.strings["_cls_doc"] = inspect.getdoc(cls)
 
@@ -141,7 +231,6 @@ class Modules:
         self.modules = []  # skipcq: PTC-W0052
         self.watchers = []
         self._log_handlers = []
-        self._compat_layer = None
         self.client = None
         self._initial_registration = True
         self.added_modules = None
@@ -149,11 +238,6 @@ class Modules:
     def register_all(self, db, mods=None):
         """Load all modules in the module directory"""
         self._db = db
-
-        if self._compat_layer is None:
-            from . import compat  # noqa
-
-            self._compat_layer = compat.activate([])
 
         external_mods = []
 
@@ -191,9 +275,7 @@ class Modules:
 
         for mod in mods:
             try:
-                module_name = (
-                    f"{__package__}.{MODULES_NAME}.{os.path.basename(mod)[:-3]}"
-                )
+                module_name = f"{__package__}.{MODULES_NAME}.{os.path.basename(mod)[:-3]}"  # fmt: skip
                 logging.debug(module_name)
                 spec = importlib.util.spec_from_file_location(module_name, mod)
                 self.register_module(spec, module_name, "<core>")
@@ -202,9 +284,7 @@ class Modules:
 
         for mod in external_mods:
             try:
-                module_name = (
-                    f"{__package__}.{MODULES_NAME}.{os.path.basename(mod)[:-3]}"
-                )
+                module_name = f"{__package__}.{MODULES_NAME}.{os.path.basename(mod)[:-3]}"  # fmt: skip
                 logging.debug(module_name)
                 spec = importlib.util.spec_from_file_location(module_name, mod)
                 self.register_module(spec, module_name, "<file>")
@@ -219,11 +299,8 @@ class Modules:
         save_fs: bool = False,
     ) -> Module:
         """Register single module from importlib spec"""
-        from .compat import uniborg
-
         module = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = module
-        module.borg = uniborg.UniborgClient(module_name)
         spec.loader.exec_module(module)
         ret = None
 
@@ -281,9 +358,7 @@ class Modules:
                 }
                 and command.lower() in self.commands
             ):
-                logging.warning(
-                    f"Command {command} is core and will not be overwritten by {instance}"
-                )
+                logging.warning(f"Command {command} is core and will not be overwritten by {instance}")  # fmt: skip
                 del instance.commands[command]
                 continue
 
@@ -331,9 +406,7 @@ class Modules:
             ):
                 logging.debug(f"Duplicate callback_handler {handler}")
 
-            self.callback_handlers.update(
-                {handler.lower(): instance.callback_handlers[handler]}
-            )
+            self.callback_handlers.update({handler.lower(): instance.callback_handlers[handler]})  # fmt: skip
 
     def register_watcher(self, instance: Module) -> None:
         """Register watcher from instance"""
@@ -380,6 +453,11 @@ class Modules:
                     )
                 )
 
+                for method in dir(module):
+                    if isinstance(getattr(module, method), InfiniteLoop):
+                        getattr(module, method).stop()
+                        logger.debug(f"Stopped loop in {module=}, {method=}")
+
         self.modules += [instance]
 
     def _mod_get(self, *args, mod: str = None) -> Any:
@@ -422,24 +500,26 @@ class Modules:
     ) -> None:
         """Send config to single instance"""
         if hasattr(mod, "config"):
-            modcfg = db.get(mod.__module__, "__config__", {})
+            modcfg = db.get(
+                getattr(mod, "name", mod.__class__.__name__), "__config__", {}
+            )
             for conf in mod.config.keys():
                 if conf in modcfg.keys():
                     mod.config[conf] = modcfg[conf]
                 else:
                     try:
-                        mod.config[conf] = os.environ[f"{mod.__module__}.{conf}"]
+                        mod.config[conf] = os.environ[f'{getattr(mod, "name", mod.__class__.__name__)}.{conf}']  # fmt: skip
                     except KeyError:
                         mod.config[conf] = mod.config.getdef(conf)
+
+        if skip_hook:
+            return
 
         if not hasattr(mod, "name"):
             mod.name = mod.strings["name"]
 
         if hasattr(mod, "strings"):
             mod.strings = Strings(mod, translator)
-
-        if skip_hook:
-            return
 
         mod.translator = translator
 
@@ -464,8 +544,6 @@ class Modules:
         # re-assign it to all modules
         self.inline = inline_manager
 
-        await self._compat_layer.client_ready(client)
-
         try:
             await asyncio.gather(
                 *[
@@ -473,9 +551,7 @@ class Modules:
                     for mod in self.modules
                 ]
             )
-            await asyncio.gather(
-                *[mod._client_ready2(client, db) for mod in self.modules]
-            )
+            await asyncio.gather(*[mod._client_ready2(client, db) for mod in self.modules])  # fmt: skip
         except Exception as e:
             logging.exception(f"Failed to send mod init complete signal due to {e}")
 
@@ -548,6 +624,11 @@ class Modules:
                     )
                 )
 
+                for method in dir(module):
+                    if isinstance(getattr(module, method), InfiniteLoop):
+                        getattr(module, method).stop()
+                        logger.debug(f"Stopped loop in {module=}, {method=}")
+
                 to_remove += module.commands.values()
                 if hasattr(module, "watcher"):
                     to_remove += [module.watcher]
@@ -590,9 +671,7 @@ class Modules:
         return True
 
     async def log(self, type_, *, group=None, affected_uids=None, data=None):
-        return await asyncio.gather(
-            *[fun(type_, group, affected_uids, data) for fun in self._log_handlers]
-        )
+        return await asyncio.gather(*[fun(type_, group, affected_uids, data) for fun in self._log_handlers])  # fmt: skip
 
     def register_logger(self, logger):
         self._log_handlers.append(logger)

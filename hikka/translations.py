@@ -65,15 +65,27 @@ class Strings:
     def __init__(self, mod, translator):
         self._mod = mod
         self._translator = translator
+        if not translator:
+            logger.debug(f"Module {mod=} got empty translator {translator=}")
         self._base_strings = mod.strings  # Back 'em up, bc they will get replaced
 
     def __getitem__(self, key: str) -> str:
-        logger.debug(f"{self._mod.__module__}.{key}")
-        return self._translator.getkey(f"{self._mod.__module__}.{key}") or getattr(
-            self._mod,
-            f"strings_{self._translator.db.get(__name__, 'lang', 'en')}",
-            self._base_strings,
-        ).get(key, self._base_strings.get(key, "Unknown strings"))
+        return (
+            self._translator.getkey(f"{self._mod.__module__}.{key}")
+            if self._translator is not None
+            else False
+        ) or (
+            getattr(
+                self._mod,
+                f"strings_{self._translator.db.get(__name__, 'lang', 'en')}",
+                self._base_strings,
+            )
+            if self._translator is not None
+            else self._base_strings
+        ).get(
+            key,
+            self._base_strings.get(key, "Unknown strings"),
+        )
 
     def __call__(self, key: str, _=None) -> str:  # `_` is a compatibility tweak
         return self.__getitem__(key)

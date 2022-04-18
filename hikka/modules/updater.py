@@ -43,7 +43,7 @@ class UpdaterMod(loader.Module):
     def __init__(self):
         self.config = loader.ModuleConfig(
             "GIT_ORIGIN_URL",
-            "https://github.com/teateateate/Hikka",
+            "https://github.com/hikariatama/Hikka",
             lambda: self.strings("origin_cfg_doc"),
         )
 

@@ -149,7 +149,8 @@ class Utils(InlineUnit):
                     )
         except Exception:
             logger.debug("Can't parse security mask in form", exc_info=True)
-            return None
+
+        return None
 
     def _normalize_markup(self, reply_markup: Union[dict, list]) -> list:
         if isinstance(reply_markup, dict):
@@ -206,7 +207,9 @@ class Utils(InlineUnit):
         try:
             await self.bot.edit_message_text(
                 text,
-                inline_message_id=inline_message_id or query.inline_message_id,
+                inline_message_id=inline_message_id
+                or unit.get("inline_message_id", False)
+                or query.inline_message_id,
                 parse_mode="HTML",
                 disable_web_page_preview=disable_web_page_preview,
                 reply_markup=self._generate_markup(
