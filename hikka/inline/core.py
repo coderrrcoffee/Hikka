@@ -37,7 +37,7 @@ class InlineManager(
     List,
     BotInteractions,
 ):
-    def __init__(self, client, db, allmodules) -> None:
+    def __init__(self, client, db, allmodules):
         """Initialize InlineManager to create forms"""
         self._client = client
         self._db = db
@@ -58,7 +58,7 @@ class InlineManager(
 
         self.init_complete = False
 
-    async def _cleaner(self) -> None:
+    async def _cleaner(self):
         """Cleans outdated _forms"""
         while True:
             for form_uid, form in self._forms.copy().items():
@@ -79,7 +79,7 @@ class InlineManager(
         self,
         after_break: bool = False,
         ignore_token_checks: bool = False,
-    ) -> None:
+    ):
         # Get info about user to use it in this class
         me = await self._client.get_me()
         self._me = me.id
@@ -173,7 +173,7 @@ class InlineManager(
         self._task = asyncio.ensure_future(self._dp.start_polling())
         self._cleaner_task = asyncio.ensure_future(self._cleaner())
 
-    async def _stop(self) -> None:
+    async def _stop(self):
         self._task.cancel()
         self._dp.stop_polling()
         self._cleaner_task.cancel()

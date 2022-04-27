@@ -13,18 +13,18 @@ import re
 import sys
 import urllib
 import uuid
-from importlib.abc import SourceLoader
 from importlib.machinery import ModuleSpec
 import telethon
 from telethon.tl.types import Message
 import functools
-from typing import Any, Union
+from typing import Any, Union, List
 from aiogram.types import CallbackQuery
 
 import requests
 
 from .. import loader, utils, main
 from ..compat import geek
+from ..inline.types import InlineMessage
 
 logger = logging.getLogger(__name__)
 
@@ -41,28 +41,6 @@ GIT_REGEX = re.compile(
     r"^https?://github\.com((?:/[a-z0-9-]+){2})(?:/tree/([a-z0-9-]+)((?:/[a-z0-9-]+)*))?/?$",
     flags=re.IGNORECASE,
 )
-
-
-class StringLoader(SourceLoader):  # pylint: disable=W0223
-    """Load a python module/file from a string"""
-
-    def __init__(self, data, origin):
-        self.data = data.encode("utf-8") if isinstance(data, str) else data
-        self.origin = origin
-
-    def get_code(self, fullname):
-        source = self.get_source(fullname)
-        if source is None:
-            return None
-        return compile(source, self.origin, "exec", dont_inherit=True)
-
-    def get_filename(self, fullname):
-        return self.origin
-
-    def get_data(self, filename):  # pylint: disable=W0221,W0613
-        # W0613 is not fixable, we are overriding
-        # W0221 is a false positive assuming docs are correct
-        return self.data
 
 
 def unescape_percent(text):
@@ -435,7 +413,11 @@ class LoaderMod(loader.Module):
 
         try:
             try:
-                spec = ModuleSpec(module_name, StringLoader(doc, origin), origin=origin)
+                spec = ModuleSpec(
+                    module_name,
+                    loader.StringLoader(doc, origin),
+                    origin=origin,
+                )
                 instance = self.allmodules.register_module(
                     spec,
                     module_name,
@@ -517,6 +499,7 @@ class LoaderMod(loader.Module):
                     save_fs,
                 )  # Try again
             except loader.LoadError as e:
+                self.allmodules.modules.remove(instance)
                 if message:
                     await utils.answer(message, f"🚫 <b>{utils.escape_html(str(e))}</b>")
                 return
@@ -529,14 +512,7 @@ class LoaderMod(loader.Module):
             return
 
         instance.inline = self.inline
-        instance.get = functools.partial(
-            self._mod_get,
-            mod=instance.strings["name"],
-        )
-        instance.set = functools.partial(
-            self._mod_set,
-            mod=instance.strings["name"],
-        )
+        instance.animate = self._animate
 
         for method in dir(instance):
             if isinstance(getattr(instance, method), loader.InfiniteLoop):
@@ -556,8 +532,17 @@ class LoaderMod(loader.Module):
                     self._client,
                     self._db,
                     self.allclients,
+                    no_self_unload=True,
+                    from_dlmod=bool(message),
                 )
             except loader.LoadError as e:
+                self.allmodules.modules.remove(instance)
+                if message:
+                    await utils.answer(message, f"🚫 <b>{utils.escape_html(str(e))}</b>")
+                return
+            except loader.SelfUnload as e:
+                logging.debug(f"Unloading {instance}, because it raised `SelfUnload`")
+                self.allmodules.modules.remove(instance)
                 if message:
                     await utils.answer(message, f"🚫 <b>{utils.escape_html(str(e))}</b>")
                 return
@@ -576,9 +561,6 @@ class LoaderMod(loader.Module):
                 modname = getattr(instance, "name", "ERROR")
 
             modhelp = ""
-            prefix = utils.escape_html(
-                (self._db.get(main.__name__, "command_prefix", False) or ".")
-            )
 
             if instance.__doc__:
                 modhelp += (
@@ -604,7 +586,7 @@ class LoaderMod(loader.Module):
                 instance.commands.items(),
                 key=lambda x: x[0],
             ):
-                modhelp += self.strings("single_cmd").format(prefix, _name)
+                modhelp += self.strings("single_cmd").format(self.get_prefix(), _name)
 
                 if fun.__doc__:
                     modhelp += utils.escape_html(inspect.getdoc(fun))
@@ -682,20 +664,58 @@ class LoaderMod(loader.Module):
             self.strings("unloaded" if worked else "not_unloaded"),
         )
 
-    def _mod_get(self, *args, mod: str = None) -> Any:
-        return self._db.get(mod, *args)
+    async def _animate(
+        self,
+        message: Union[Message, InlineMessage],
+        frames: List[str],
+        interval: Union[float, int],
+        *,
+        inline: bool = False,
+    ) -> None:
+        """
+        Animate message
+        :param message: Message to animate
+        :param frames: A List of strings which are the frames of animation
+        :param interval: Animation delay
+        :param inline: Whether to use inline bot for animation
+        :returns message:
 
-    def _mod_set(self, *args, mod: str = None) -> bool:
-        return self._db.set(mod, *args)
+        Please, note that if you set `inline=True`, first frame will be shown with an empty
+        button due to the limitations of Telegram API
+        """
+
+        if interval < 0.1:
+            logger.warning("Resetting animation interval to 0.1s, because it may get you in floodwaits bro")  # fmt: skip
+            interval = 0.1
+
+        for frame in frames:
+            if isinstance(message, Message):
+                if inline:
+                    message = await self.inline.form(
+                        message=message,
+                        text=frame,
+                        reply_markup={"text": "\u0020\u2800", "data": "empty"},
+                    )
+                else:
+                    message = await utils.answer(message, frame)
+            elif isinstance(message, InlineMessage) and inline:
+                await message.edit(frame)
+
+            await asyncio.sleep(interval)
+
+        return message
 
     @loader.owner
     async def clearmodulescmd(self, message: Message) -> None:
         """Delete all installed modules"""
         self._db.set(__name__, "loaded_modules", {})
 
-        await utils.answer(message, self.strings("all_modules_deleted"))
+        for file in os.scandir(loader.LOADED_MODULES_DIR):
+            os.remove(file)
 
         self._db.set(__name__, "chosen_preset", "none")
+
+        await utils.answer(message, self.strings("all_modules_deleted"))
 
         await self.allmodules.commands["restart"](await message.reply("_"))
 

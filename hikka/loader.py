@@ -12,11 +12,13 @@ import inspect
 import logging
 import os
 import sys
+from importlib.abc import SourceLoader
 
 from . import utils, security
 from .translations import Strings
 from .inline.core import InlineManager
-from ._types import Module, LoadError, ModuleConfig, StopLoop  # noqa: F401
+from ._types import Module, LoadError, ModuleConfig, StopLoop, SelfUnload  # noqa: F401
+
 from importlib.machinery import ModuleSpec
 from types import FunctionType
 from typing import Any, Optional, Union
@@ -40,6 +42,26 @@ unrestricted = security.unrestricted
 inline_everyone = security.inline_everyone
 
 
+class StringLoader(SourceLoader):
+    """Load a python module/file from a string"""
+
+    def __init__(self, data, origin):
+        self.data = data.encode("utf-8") if isinstance(data, str) else data
+        self.origin = origin
+
+    def get_code(self, fullname):
+        source = self.get_source(fullname)
+        if source is None:
+            return None
+        return compile(source, self.origin, "exec", dont_inherit=True)
+
+    def get_filename(self, *args, **kwargs):
+        return self.origin
+
+    def get_data(self, *args, **kwargs):
+        return self.data
+
+
 class InfiniteLoop:
     def __init__(
         self,
@@ -48,7 +70,7 @@ class InfiniteLoop:
         autostart: bool,
         wait_before: bool,
         stop_clause: Union[str, None],
-    ) -> None:
+    ):
         logger.debug(f"Inited new loop {func=}, {interval=}")
         self.func = func
         self.interval = interval
@@ -61,7 +83,7 @@ class InfiniteLoop:
         if autostart:
             self.start()
 
-    def stop(self, *args, **kwargs) -> None:
+    def stop(self, *args, **kwargs):
         if self._task:
             logger.debug(f"Stopped loop for {self.func}")
             self._task.cancel()
@@ -70,7 +92,7 @@ class InfiniteLoop:
         else:
             logger.debug("Loop is not running")
 
-    def start(self, *args, **kwargs) -> None:
+    def start(self, *args, **kwargs):
         if not self._task:
             logger.debug(f"Started loop for {self.func}")
             self._task = asyncio.ensure_future(self.actual_loop(*args, **kwargs))
@@ -110,7 +132,7 @@ class InfiniteLoop:
 
         self.status = False
 
-    def __del__(self) -> None:
+    def __del__(self):
         self.stop()
 
 
@@ -259,7 +281,6 @@ class Modules:
                         len(x) > 3
                         and x[-3:] == ".py"
                         and x[0] != "_"
-                        and ("OKTETO" in os.environ or x != "okteto.py")
                         and (
                             not db.get("hikka", "disable_quickstart", False)
                             or x != "quickstart.py"
@@ -281,23 +302,22 @@ class Modules:
                 )
             ]
 
-        logging.debug(mods)
+        self._register_modules(mods)
+        self._register_modules(external_mods, "<file>")
 
-        for mod in mods:
+    def _register_modules(self, modules: list, origin: str = "<core>"):
+        for mod in modules:
             try:
                 module_name = f"{__package__}.{MODULES_NAME}.{os.path.basename(mod)[:-3]}"  # fmt: skip
                 logging.debug(module_name)
-                spec = importlib.util.spec_from_file_location(module_name, mod)
-                self.register_module(spec, module_name, "<core>")
-            except BaseException as e:
-                logging.exception(f"Failed to load core module {mod} due to {e}:")
+                with open(mod, "r") as file:
+                    spec = ModuleSpec(
+                        module_name,
+                        StringLoader(file.read(), origin),
+                        origin=origin,
+                    )
 
-        for mod in external_mods:
-            try:
-                module_name = f"{__package__}.{MODULES_NAME}.{os.path.basename(mod)[:-3]}"  # fmt: skip
-                logging.debug(module_name)
-                spec = importlib.util.spec_from_file_location(module_name, mod)
-                self.register_module(spec, module_name, "<file>")
+                self.register_module(spec, module_name, origin)
             except BaseException as e:
                 logging.exception(f"Failed to load module {mod} due to {e}:")
 
@@ -342,7 +362,7 @@ class Modules:
 
         return ret
 
-    def register_commands(self, instance: Module) -> None:
+    def register_commands(self, instance: Module):
         """Register commands from instance"""
         for command in instance.commands.copy():
             # Restrict overwriting core modules' commands
@@ -417,7 +437,7 @@ class Modules:
                 logging.debug(f"Duplicate callback_handler {handler}")
             self.callback_handlers.update({handler.lower(): instance.callback_handlers[handler]})  # fmt: skip
 
-    def register_watcher(self, instance: Module) -> None:
+    def register_watcher(self, instance: Module):
         """Register watcher from instance"""
         try:
             if instance.watcher:
@@ -433,7 +453,7 @@ class Modules:
         except AttributeError:
             pass
 
-    def complete_registration(self, instance: Module) -> None:
+    def complete_registration(self, instance: Module):
         """Complete registration of instance"""
         instance.allmodules = self
         instance.hikka = True
@@ -444,6 +464,10 @@ class Modules:
         instance.set = functools.partial(
             self._mod_set,
             mod=instance.strings["name"],
+        )
+
+        instance.get_prefix = lambda: (
+            self._db.get("hikka.main", "command_prefix", False) or "."
         )
 
         for module in self.modules:
@@ -495,7 +519,7 @@ class Modules:
                     except KeyError:
                         return command, None
 
-    def send_config(self, db, translator, skip_hook: bool = False) -> None:
+    def send_config(self, db, translator, skip_hook: bool = False):
         """Configure modules"""
         for mod in self.modules:
             self.send_config_one(mod, db, translator, skip_hook)
@@ -506,7 +530,7 @@ class Modules:
         db: "Database",  # noqa: F821
         translator: "Translator" = None,  # noqa: F821
         skip_hook: bool = False,
-    ) -> None:
+    ):
         """Send config to single instance"""
         if hasattr(mod, "config"):
             modcfg = db.get(
@@ -569,12 +593,32 @@ class Modules:
         if self.added_modules:
             await self.added_modules(self)
 
-    async def send_ready_one(self, mod, client, db, allclients):
+    async def send_ready_one(
+        self,
+        mod: Module,
+        client: "TelegramClient",  # noqa: F821
+        db: "Database",  # noqa: F821
+        allclients: list,
+        no_self_unload: bool = False,
+        from_dlmod: bool = False,
+    ):
         mod.allclients = allclients
         mod.inline = self.inline
 
+        if from_dlmod:
+            try:
+                await mod.on_dlmod(client, db)
+            except Exception:
+                logging.info("Can't process `on_dlmod` hook", exc_info=True)
+
         try:
             await mod.client_ready(client, db)
+        except SelfUnload as e:
+            if no_self_unload:
+                raise e
+
+            logging.debug(f"Unloading {mod}, because it raised SelfUnload")
+            self.modules.remove(mod)
         except Exception as e:
             logging.exception(f"Failed to send mod init complete signal for {mod} due to {e}, attempting unload")  # fmt: skip
             self.modules.remove(mod)

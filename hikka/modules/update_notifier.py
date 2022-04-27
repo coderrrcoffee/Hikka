@@ -11,8 +11,6 @@ import logging
 import git
 from typing import Union
 
-from .._types import LoadError
-
 logger = logging.getLogger(__name__)
 
 
@@ -27,12 +25,6 @@ class UpdateNotifierMod(loader.Module):
     }
 
     _notified = None
-    _pending = None
-    _db = None
-    _client = None
-    _me = None
-    _markup = None
-    _task = None
 
     def get_commit(self) -> Union[str, bool]:
         try:
@@ -67,7 +59,7 @@ class UpdateNotifierMod(loader.Module):
         except Exception:
             return ""
 
-    async def client_ready(self, client, db) -> None:
+    async def client_ready(self, client, db):
         self._db = db
         self._client = client
         self._me = (await client.get_me()).id
@@ -75,7 +67,7 @@ class UpdateNotifierMod(loader.Module):
         try:
             git.Repo()
         except Exception as e:
-            raise LoadError("Can't load due to repo init error") from e
+            raise loader.LoadError("Can't load due to repo init error") from e
 
         self._markup = self.inline._generate_markup(
             [
@@ -86,10 +78,10 @@ class UpdateNotifierMod(loader.Module):
 
         self._task = asyncio.ensure_future(self.poller())
 
-    async def on_unload(self) -> None:
+    async def on_unload(self):
         self._task.cancel()
 
-    async def poller(self) -> None:
+    async def poller(self):
         while True:
             if not self.get_changelog():
                 await asyncio.sleep(60)
@@ -113,7 +105,7 @@ class UpdateNotifierMod(loader.Module):
                         self._me,
                         self.strings("update_required").format(
                             self.get_commit()[:6],
-                            self.get_latest()[:6],
+                            f'<a href="https://github.com/hikariatama/Hikka/compare/{self.get_commit()[:12]}...{self.get_latest()[:12]}">{self.get_latest()[:6]}</a>',
                             self.get_changelog(),
                         ),
                         parse_mode="HTML",
@@ -140,7 +132,7 @@ class UpdateNotifierMod(loader.Module):
 
             await asyncio.sleep(60)
 
-    async def update_callback_handler(self, call: CallbackQuery) -> None:
+    async def update_callback_handler(self, call: CallbackQuery):
         """Process update buttons clicks"""
         if call.data not in {"hikka_update", "hikka_upd_ignore"}:
             return

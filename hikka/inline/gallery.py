@@ -1,7 +1,3 @@
-#              © Copyright 2022
-#
-#          https://t.me/codercoffee
-
 from .types import InlineUnit
 from .. import utils
 
@@ -334,7 +330,7 @@ class Gallery(InlineUnit):
 
         return photo_url
 
-    async def _load_gallery_photos(self, gallery_uid: str) -> None:
+    async def _load_gallery_photos(self, gallery_uid: str):
         """Preloads photo. Should be called via ensure_future"""
         photo_url = await self._call_photo(self._galleries[gallery_uid]["next_handler"])
 
@@ -358,7 +354,7 @@ class Gallery(InlineUnit):
         call: CallbackQuery,
         btn_call_data: List[str] = None,
         gallery_uid: str = None,
-    ) -> None:
+    ):
         while True:
             await asyncio.sleep(7)
 
@@ -378,7 +374,7 @@ class Gallery(InlineUnit):
         call: CallbackQuery,
         btn_call_data: List[str] = None,
         gallery_uid: str = None,
-    ) -> None:
+    ):
         if not self._galleries[gallery_uid].get("slideshow", False):
             self._galleries[gallery_uid]["slideshow"] = True
             await self.bot.edit_message_reply_markup(
@@ -408,7 +404,7 @@ class Gallery(InlineUnit):
         call: CallbackQuery,
         btn_call_data: List[str] = None,
         gallery_uid: str = None,
-    ) -> None:
+    ):
         queue = self._galleries[gallery_uid]["photos"]
 
         if not queue:
@@ -463,7 +459,7 @@ class Gallery(InlineUnit):
         btn_call_data: List[str] = None,
         func: FunctionType = None,
         gallery_uid: str = None,
-    ) -> None:
+    ):
         self._galleries[gallery_uid]["current_index"] += 1
         # If we exceeded photos limit in gallery and need to preload more
         if self._galleries[gallery_uid]["current_index"] >= len(
@@ -564,7 +560,7 @@ class Gallery(InlineUnit):
 
         return markup
 
-    async def _gallery_inline_handler(self, inline_query: InlineQuery) -> None:
+    async def _gallery_inline_handler(self, inline_query: InlineQuery):
         for gallery in self._galleries.copy().values():
             if (
                 inline_query.from_user.id == self._me

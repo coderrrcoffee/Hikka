@@ -1,7 +1,3 @@
-#              © Copyright 2022
-#
-#          https://t.me/codercoffee
-
 from .types import InlineUnit
 from .. import utils
 
@@ -33,8 +29,6 @@ class Utils(InlineUnit):
     def _generate_markup(
         self,
         form_uid: Union[str, list],
-        /,
-        prepare_callbacks: bool = False,
     ) -> Union[None, InlineKeyboardMarkup]:
         """Generate markup for form or list of `dict`s"""
         if not form_uid:
@@ -48,6 +42,8 @@ class Utils(InlineUnit):
 
         map_ = self._normalize_markup(map_)
 
+        setup_callbacks = False
+
         for row in map_:
             for button in row:
                 if not isinstance(button, dict):
@@ -56,6 +52,7 @@ class Utils(InlineUnit):
 
                 if "callback" in button and "_callback_data" not in button:
                     button["_callback_data"] = utils.rand(30)
+                    setup_callbacks = True
 
                 if "input" in button and "_switch_query" not in button:
                     button["_switch_query"] = utils.rand(10)
@@ -85,7 +82,7 @@ class Utils(InlineUnit):
                                 callback_data=button["_callback_data"],
                             )
                         ]
-                        if prepare_callbacks:
+                        if setup_callbacks:
                             self._custom_map[button["_callback_data"]] = {
                                 "handler": button["callback"],
                                 **(
@@ -126,6 +123,20 @@ class Utils(InlineUnit):
                             InlineKeyboardButton(
                                 button["text"],
                                 callback_data=button["data"],
+                            )
+                        ]
+                    elif "switch_inline_query_current_chat" in button:
+                        line += [
+                            InlineKeyboardButton(
+                                button["text"],
+                                switch_inline_query_current_chat=button["switch_inline_query_current_chat"]
+                            )
+                        ]
+                    elif "switch_inline_query" in button:
+                        line += [
+                            InlineKeyboardButton(
+                                button["text"],
+                                switch_inline_query_current_chat=button["switch_inline_query"]
                             )
                         ]
                     else:
@@ -205,7 +216,7 @@ class Utils(InlineUnit):
         query: CallbackQuery = None,
         unit_uid: str = None,
         inline_message_id: Union[str, None] = None,
-    ) -> None:
+    ):
         """Do not edit or pass `self`, `query`, `unit_uid` params, they are for internal use only"""
         self._units = {**self._forms, **self._lists, **self._galleries}
         if isinstance(reply_markup, (list, dict)):

@@ -80,7 +80,7 @@ class HikkaSecurityMod(loader.Module):
         "restart": "<i>🔄 Restart may be required to commit changes</i>",
     }
 
-    async def client_ready(self, client, db) -> None:
+    async def client_ready(self, client, db):
         self._db = db
         self._client = client
         self.prefix = utils.escape_html(
@@ -97,7 +97,7 @@ class HikkaSecurityMod(loader.Module):
         group: str,
         level: bool,
         is_inline: bool,
-    ) -> None:
+    ):
         cmd = (
             self.allmodules.commands[command]
             if not is_inline
@@ -145,7 +145,7 @@ class HikkaSecurityMod(loader.Module):
         group: str,
         level: bool,
         is_inline: bool,
-    ) -> None:
+    ):
         mask = self._db.get(security.__name__, "bounding_mask", DEFAULT_PERMISSIONS)
         bit = security.BITMAP[group.upper()]
 
@@ -163,7 +163,7 @@ class HikkaSecurityMod(loader.Module):
         )
 
     @staticmethod
-    async def inline_close(call: aiogram.types.CallbackQuery) -> None:
+    async def inline_close(call: aiogram.types.CallbackQuery):
         await call.delete()
 
     def _build_markup(
@@ -265,7 +265,7 @@ class HikkaSecurityMod(loader.Module):
 
         return self._perms_map(config, is_inline)
 
-    async def securitycmd(self, message: Message) -> None:
+    async def securitycmd(self, message: Message):
         """[command] - Configure command's security settings"""
         args = utils.get_args_raw(message).lower().strip()
         if args and args not in self.allmodules.commands:
@@ -290,7 +290,7 @@ class HikkaSecurityMod(loader.Module):
             ttl=5 * 60,
         )
 
-    async def inlineseccmd(self, message: Message) -> None:
+    async def inlineseccmd(self, message: Message):
         """[command] - Configure inline command's security settings"""
         args = utils.get_args_raw(message).lower().strip()
         if not args:
@@ -314,7 +314,7 @@ class HikkaSecurityMod(loader.Module):
             ttl=5 * 60,
         )
 
-    async def _resolve_user(self, message: Message) -> None:
+    async def _resolve_user(self, message: Message):
         reply = await message.get_reply_message()
         args = utils.get_args_raw(message)
 
@@ -352,7 +352,7 @@ class HikkaSecurityMod(loader.Module):
         group: str,
         confirmed: bool = False,
         user: int = None,
-    ) -> None:
+    ):
         if user is None:
             user = await self._resolve_user(message)
             if not user:
@@ -406,7 +406,7 @@ class HikkaSecurityMod(loader.Module):
         else:
             await message.edit(m)
 
-    async def _remove_from_group(self, message: Message, group: str) -> None:
+    async def _remove_from_group(self, message: Message, group: str):
         user = await self._resolve_user(message)
         if not user:
             return
@@ -427,7 +427,7 @@ class HikkaSecurityMod(loader.Module):
 
         await utils.answer(message, m)
 
-    async def _list_group(self, message: Message, group: str) -> None:
+    async def _list_group(self, message: Message, group: str):
         _resolved_users = []
         for user in self._db.get(security.__name__, group, []) + (
             [self._me] if group == "owner" else []
@@ -454,38 +454,38 @@ class HikkaSecurityMod(loader.Module):
         else:
             await utils.answer(message, self.strings(f"no_{group}"))
 
-    async def sudoaddcmd(self, message: Message) -> None:
+    async def sudoaddcmd(self, message: Message):
         """<user> - Add user to `sudo`"""
         await self._add_to_group(message, "sudo")
 
-    async def owneraddcmd(self, message: Message) -> None:
+    async def owneraddcmd(self, message: Message):
         """<user> - Add user to `owner`"""
         await self._add_to_group(message, "owner")
 
-    async def supportaddcmd(self, message: Message) -> None:
+    async def supportaddcmd(self, message: Message):
         """<user> - Add user to `support`"""
         await self._add_to_group(message, "support")
 
-    async def sudormcmd(self, message: Message) -> None:
+    async def sudormcmd(self, message: Message):
         """<user> - Remove user from `sudo`"""
         await self._remove_from_group(message, "sudo")
 
-    async def ownerrmcmd(self, message: Message) -> None:
+    async def ownerrmcmd(self, message: Message):
         """<user> - Remove user from `owner`"""
         await self._remove_from_group(message, "owner")
 
-    async def supportrmcmd(self, message: Message) -> None:
+    async def supportrmcmd(self, message: Message):
         """<user> - Remove user from `support`"""
         await self._remove_from_group(message, "support")
 
-    async def sudolistcmd(self, message: Message) -> None:
+    async def sudolistcmd(self, message: Message):
         """List users in `sudo`"""
         await self._list_group(message, "sudo")
 
-    async def ownerlistcmd(self, message: Message) -> None:
+    async def ownerlistcmd(self, message: Message):
         """List users in `owner`"""
         await self._list_group(message, "owner")
 
-    async def supportlistcmd(self, message: Message) -> None:
+    async def supportlistcmd(self, message: Message):
         """List users in `support`"""
         await self._list_group(message, "support")

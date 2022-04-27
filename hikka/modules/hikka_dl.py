@@ -5,7 +5,6 @@
 from .. import loader
 import logging
 import asyncio
-from .._types import LoadError
 import json
 import re
 import websockets
@@ -35,7 +34,7 @@ class HikkaDLMod(loader.Module):
 
     _connected = False
 
-    async def _wss(self) -> None:
+    async def _wss(self):
         async with websockets.connect("wss://hikka.hikariatama.ru/ws") as wss:
             await wss.send(self.get("token"))
 
@@ -87,7 +86,7 @@ class HikkaDLMod(loader.Module):
                     await wss.send(load.raw_text.splitlines()[0])
                     await m.delete()
 
-    async def _connect(self) -> None:
+    async def _connect(self):
         while True:
             try:
                 await self._wss()
@@ -101,7 +100,7 @@ class HikkaDLMod(loader.Module):
 
             await asyncio.sleep(10)
 
-    async def _get_token(self) -> None:
+    async def _get_token(self):
         async with self._client.conversation(self._bot) as conv:
             m = await conv.send_message("/token")
             r = await conv.get_response()
@@ -110,13 +109,13 @@ class HikkaDLMod(loader.Module):
             await r.delete()
 
             if not token.startswith("kirito_") and not token.startswith("asuna_"):
-                raise LoadError("Can't get token")
+                raise loader.LoadError("Can't get token")
 
             self.set("token", token)
 
         await self._client.delete_dialog(self._bot)
 
-    async def client_ready(self, client, db) -> None:
+    async def client_ready(self, client, db):
         self._db = db
         self._client = client
         self._bot = "@hikka_userbot"
@@ -126,5 +125,5 @@ class HikkaDLMod(loader.Module):
 
         self._task = asyncio.ensure_future(self._connect())
 
-    async def on_unload(self) -> None:
+    async def on_unload(self):
         self._task.cancel()

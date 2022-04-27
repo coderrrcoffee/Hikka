@@ -2,13 +2,15 @@
 #
 #          https://t.me/codercoffee
 
-from .. import loader, utils
+from .. import loader, utils, main
 import logging
 import asyncio
 import os
 import time
 from telethon.tl.functions.messages import GetScheduledHistoryRequest
 from telethon.tl.types import Message
+
+from .._types import SelfUnload
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +21,7 @@ class OktetoMod(loader.Module):
 
     strings = {"name": "Okteto"}
 
-    async def client_ready(self, client, db) -> None:
-        if "OKTETO" not in os.environ:
-            raise loader.LoadError("This module can be loaded only if userbot is installed to ☁️ Okteto")  # fmt: skip
+    async def client_ready(self, client, db):
 
         self._db = db
         self._client = client
@@ -32,21 +32,40 @@ class OktetoMod(loader.Module):
         self._exception_timeout = 10
         self._send_interval = 5
         self._bot = "@WebpageBot"
-        await utils.dnd(client, await client.get_entity(self._bot), True)
-        self._task = asyncio.ensure_future(self._okteto_poller())
 
-    async def on_unload(self) -> None:
+        if "OKTETO" not in os.environ:
+            messages = (
+                await client(
+                    GetScheduledHistoryRequest(
+                        peer=self._bot,
+                        hash=0,
+                    ),
+                )
+            ).messages
+
+            if messages:
+                logger.info("Deleting previously scheduled Okteto pinger messages")
+
+            for message in messages:
+                await message.delete()
+
+            raise SelfUnload
+
+        await utils.dnd(client, await client.get_entity(self._bot), True)
+        self._task = asyncio.ensure_future(self._okteto_pinger())
+
+    async def on_unload(self):
         self._task.cancel()
 
-    async def _okteto_poller(self) -> None:
+    async def _okteto_pinger(self):
         """Creates queue to Webpage bot to reset Okteto polling after app goes to sleep"""
         while True:
             try:
-                if not self._db.get("hikka", "okteto_uri", False):
+                if not main.get_config_key("okteto_uri"):
                     await asyncio.sleep(self._env_wait_interval)
                     continue
 
-                uri = self._db.get("hikka", "okteto_uri")
+                uri = main.get_config_key("okteto_uri")
                 current_queue = (
                     await self._client(
                         GetScheduledHistoryRequest(
@@ -78,11 +97,11 @@ class OktetoMod(loader.Module):
                 logger.exception("Caught exception on Okteto poller")
                 await asyncio.sleep(self._exception_timeout)
 
-    async def watcher(self, message: Message) -> None:
+    async def watcher(self, message: Message):
         if (
             not getattr(message, "raw_text", False)
-            or not self._db.get("hikka", "okteto_uri", False)
-            or self._db.get("hikka", "okteto_uri") not in message.raw_text
+            or not main.get_config_key("okteto_uri")
+            or main.get_config_key("okteto_uri") not in message.raw_text
             and "Link previews was updated successfully" not in message.raw_text
             or utils.get_chat_id(message) != 169642392
         ):
